@@ -43,8 +43,81 @@ void mosquittoDo(char* topic, byte* payload, unsigned int length) {
 
 void setup() {
   // put your setup code here, to run once:
+  // Connect to WiFi:
+  Serial.begin(9600);
+  WiFi.mode(WIFI_OFF);
+  delay(1500);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(SSID, PASS);
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(699);
+    Serial.print(".");
+  }
+  Serial.print("Connected: ");
+  Serial.println(SSID);
+
+  /* 
+  Configure the Mosquitto client with the particulars 
+  of the MQTT broker. The client is dual-use as publisher
+  and subscriber.
+  In order to publish, use the 'publish()' method of the 
+  client object. The message will be serialized JSON 
+  containing sensor readings. 
+  In order to listen, subscribe to the topic of interest
+  and handle the message with the callback in event-driven 
+  pattern. 
+  */
+  MosquittoClient.setServer(broker_ip, 1883);
+  MosquittoClient.setCallback(mosquittoDo);
+}
+
+void reconnect() {
+  /*
+  Connect to the MQTT broker in order to publish a message
+  or listen in on a topic of interest. 
+  The 'connect()' methods wants client credentials. When the
+  MQTT broker is not set up for authentication, we have successfully
+  connected to the MQTT broker using dummy data, passing string literals 
+  for args 'id' and 'user' and NULL for 'pass'.
+  Having connected successully, proceed to publish or listen.
+  */
+  while (!MosquittoClient.connected()) {
+    if (MosquittoClient.connect("VASISH", "SECOND SAPTARISHI VASISHTA", NULL)) {
+      Serial.println("Uh-Kay!");
+      MosquittoClient.subscribe("Act"); // SUBSCRIBE TO TOPIC
+    } else {
+      Serial.print("Retrying ");
+      Serial.println(broker_ip);
+      delay(699);
+    }
+  }
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+  unsigned long toc = millis();
+  #define TIMER_INTERVAL 60000
+  #define onboard_led 16
+
+  /*
+    Lights! Camera! Action!
+    Here is where the action is for publisher and subscriber.
+    Note the use of millis to scheduling the publication of
+    sensor readings to the MQTT broker in a non-blocking way
+    for the listener. The use of 'delay()' would block the 
+    listener, causing events to be missed.  
+  */
+  digitalWrite(onboard_led, LOW);
+  if (toc - tic > TIMER_INTERVAL) {
+    tic = toc;
+    if (!MosquittoClient.connected()) {
+      Serial.println("Made no MQTT connection.");
+      reconnect();
+    } else {
+      digitalWrite(onboard_led, HIGH);
+      //publish_message(); // Publisher action
+    }
+  }
+  MosquittoClient.loop(); // Subscriber action
 }
