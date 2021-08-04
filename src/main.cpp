@@ -25,6 +25,13 @@ void displayMessage(String mess) {
 }
 
 struct PAYMASTER {
+  /*
+  The payload with control recipe for tx to Arduino Uno slave.
+  It has on/off instructions for water pump ("PUMP"), speed setting
+  for PC fan (0-255), brightness setting for Neopixel LED lights
+  (0-255). Arduino Uno receives struct, unpacks information and
+  executes instructions.
+  */
   bool PUMP;
   uint8_t FAN;
   uint8_t LED;
@@ -32,12 +39,17 @@ struct PAYMASTER {
 
 struct PAYSLAVE {
   /*
-  fan: the fan speed read off the pin no. 3 (yellow wire) of a PC fan.
+  The payload returned by Arduino Uno slave with status report.
+  Currently reports only fan speed which is read off the pin no. 3 
+  (yellow wire) of a PC fan.
   */
   uint8_t fan;
 } status;
 
 void debugTx() {
+  /*
+  Pretty-print tx payload (struct).
+  */
   Serial.print("MASTER TX: ");
   Serial.print(millis());
   Serial.print("   Water: ");
@@ -49,6 +61,9 @@ void debugTx() {
 }
 
 void debugRx() {
+  /*
+  Pretty-print rx payload (struct).
+  */
   Serial.print("MASTER RX: ");
   Serial.print(millis());
   Serial.print(", Fan: ");
@@ -56,6 +71,9 @@ void debugRx() {
 }
 
 void transmitCommand() {
+  /*
+  Transmit and receive payloads over UART with Arduino Uno.
+  */
   MasterMCU.txObj(Controller, sizeof(Controller));
   MasterMCU.sendDatum(Controller), sizeof(Controller);
   debugTx();
@@ -89,14 +107,22 @@ String VAL;
 int ch;
 
 void deserializeJSON(char *PAYLOAD, unsigned int length) {
+  /*
+  Deserialize the serialized JSON read from topic on MQTT broker.
+  The array of char is read one character at a time to extract the 
+  key-value pairs and populate the struct.
+  Uses the fact that JSON payload has enclosing curly-braces, with
+  comma-separated key-value pairs, a colon separating key and value,
+  and text enclosed in quotes. 
+  EXPECTS ONLY INTEGER VALUES!!! KEYS MUST BE CONSISTENT WITH PAYLOAD STRUCT!!!
+  */
   for (int i = 0; i < length; i++) {
     ch = PAYLOAD[i];
     //Serial.print(char(ch));
-    delay(99);
     if ((ch == '{') || (ch == 32) || (ch == 34) || (ch == 39)) { // Discaed: curly brace, whitespace, quotation marks
-
+      // Do nothing!
     } else if (ch == ':') {
-
+      // Print the key now if you need to. Otherwise do nothing.
     } else if ((ch == 44) || (ch == '}')) { // comma
       if (KEY == "FAN") {
         Controller.FAN = VAL.toInt();
@@ -139,7 +165,6 @@ void mosquittoDo(char* topic, byte* payload, unsigned int length) {
 }
 
 void setup() {
-  // put your setup code here, to run once:
   // Connect to WiFi:
   Serial.begin(9600);
   WiFi.mode(WIFI_OFF);
@@ -193,7 +218,6 @@ void reconnect() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
   unsigned long toc = millis();
   #define TIMER_INTERVAL 60000
   #define onboard_led 16
