@@ -19,6 +19,51 @@ void displayMessage(String mess) {
   */
 }
 
+struct PAYMASTER {
+  bool PUMP;
+  uint8_t FAN;
+  uint8_t LED;
+} Controller;
+
+void debug_serialization() {
+  Serial.print("PUMP: ");
+  Serial.print(Controller.PUMP);
+  Serial.print(" FAN: ");
+  Serial.print(Controller.FAN);
+  Serial.print(" LED: ");
+  Serial.println(Controller.LED);
+}
+
+String KEY;
+String VAL;
+int ch;
+
+void deserializeJSON(char *PAYLOAD, unsigned int length) {
+  for (int i = 0; i < length; i++) {
+    ch = PAYLOAD[i];
+    //Serial.print(char(ch));
+    delay(99);
+    if ((ch == '{') || (ch == 32) || (ch == 34) || (ch == 39)) { // Discaed: curly brace, whitespace, quotation marks
+
+    } else if (ch == ':') {
+
+    } else if ((ch == 44) || (ch == '}')) { // comma
+      if (KEY == "FAN") {
+        Controller.FAN = VAL.toInt();
+      } else if (KEY == "LED") {
+        Controller.LED = VAL.toInt();
+      }
+      KEY = "";
+      VAL = "";
+    } else if ((ch >= '0') && (ch <= '9')) {
+      VAL += char(ch);
+    } else if (((ch >= 65) && (ch <= 90)) || ((ch > 97) && (ch < 122))) { // A-Z or a-z
+      KEY += char(ch);
+    }
+  }  
+  debug_serialization();
+}
+
 void mosquittoDo(char* topic, byte* payload, unsigned int length) {
   /*
   Handle a new message published to the subscribed topic on the 
@@ -36,6 +81,7 @@ void mosquittoDo(char* topic, byte* payload, unsigned int length) {
     message2display[i] = payload[i];
   }
   Serial.println();
+  deserializeJSON(message2display, length);
   char message4OLED[length+6]; // 'Got: ' and null terminator.
   snprintf(message4OLED, length+6, "Got: %s", message2display); 
   displayMessage(message4OLED);
