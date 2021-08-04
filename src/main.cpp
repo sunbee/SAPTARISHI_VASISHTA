@@ -1,5 +1,10 @@
 #include <Arduino.h>
 
+#include <Wire.h>
+#include <SerialTransfer.h>
+
+SerialTransfer MasterMCU;
+
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
@@ -24,6 +29,51 @@ struct PAYMASTER {
   uint8_t FAN;
   uint8_t LED;
 } Controller;
+
+struct PAYSLAVE {
+  /*
+  fan: the fan speed read off the pin no. 3 (yellow wire) of a PC fan.
+  */
+  uint8_t fan;
+} status;
+
+void debugTx() {
+  Serial.print("MASTER TX: ");
+  Serial.print(millis());
+  Serial.print("   Water: ");
+  Serial.print(Controller.PUMP);
+  Serial.print(", Fan: ");
+  Serial.print(Controller.FAN);
+  Serial.print(", LED: ");
+  Serial.println(Controller.LED);
+}
+
+void debugRx() {
+  Serial.print("MASTER RX: ");
+  Serial.print(millis());
+  Serial.print(", Fan: ");
+  Serial.println(status.fan);
+}
+
+void transmitCommand() {
+  MasterMCU.txObj(Controller, sizeof(Controller));
+  MasterMCU.sendDatum(Controller), sizeof(Controller);
+  debugTx();
+
+  if (MasterMCU.available()) {
+    MasterMCU.rxObj(status);
+    debugRx();
+  } else if (MasterMCU.status < 0) {
+    Serial.print("ERROR: ");
+
+    if (MasterMCU.status == -1)
+      Serial.println(F("CRC_ERROR"));
+    else if (MasterMCU.status == -2)
+      Serial.println(F("PAYLOAD_ERROR"));
+    else if (MasterMCU.status == -3)
+      Serial.println(F("STOP_BYTE_ERROR"));
+  }
+}
 
 void debug_serialization() {
   Serial.print("PUMP: ");
@@ -62,6 +112,7 @@ void deserializeJSON(char *PAYLOAD, unsigned int length) {
     }
   }  
   debug_serialization();
+  transmitCommand();
 }
 
 void mosquittoDo(char* topic, byte* payload, unsigned int length) {
@@ -93,6 +144,7 @@ void setup() {
   Serial.begin(9600);
   WiFi.mode(WIFI_OFF);
   delay(1500);
+  MasterMCU.begin(Serial);
   WiFi.mode(WIFI_STA);
   WiFi.begin(SSID, PASS);
   Serial.print("Connecting");
