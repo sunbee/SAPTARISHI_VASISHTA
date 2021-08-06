@@ -124,7 +124,9 @@ void deserializeJSON(char *PAYLOAD, unsigned int length) {
     } else if (ch == ':') {
       // Print the key now if you need to. Otherwise do nothing.
     } else if ((ch == 44) || (ch == '}')) { // comma
-      if (KEY == "FAN") {
+      if (KEY == "PUMP") {
+        Controller.PUMP = VAL.toInt();
+      } else if (KEY == "FAN") {
         Controller.FAN = VAL.toInt();
       } else if (KEY == "LED") {
         Controller.LED = VAL.toInt();
