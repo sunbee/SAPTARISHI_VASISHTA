@@ -1,151 +1,33 @@
 #include <Arduino.h>
 
 #include "UARTBus.h"
-#include <Wire.h>
-#include <SerialTransfer.h>
-
-SerialTransfer MasterMCU;
+UARTBus SerialBus;
 
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
 #include "SECRETS.h"
 
-#define TIMER_INTERVAL 1000
+#define TIMER_MQTT 60000   // Check connection with MQTT broker
+#define TIMER_UART 30000    // Tx instructions 
 #define onboard_led 16
 
 const char* SSID = SECRET_SSID;
 const char* PASS = SECRET_PASS;
 char broker_ip[] = SECRET_BROKER_IP;
-unsigned long tic = millis();
+unsigned long tic_MQTT = millis();
+unsigned long tic_UART = millis();
+
+/*
+Once the first message is read from topic Act on MQTT broker,
+this node can trasmit instructions payload to the partner 
+on a timer.
+*/
+bool fuse = false;   // Flag receipt of at least one message on MQTT broker's topic labeled Act 
+
 
 WiFiClient WiFiClient;
 PubSubClient MosquittoClient(WiFiClient);
-
-void displayMessage(String mess) {
-  /*
-  Flesh out later for displaying deserialized payload to OLED.
-  */
-}
-
-struct PAYMASTER {
-  /*
-  The payload with control recipe for tx to Arduino Uno slave.
-  It has on/off instructions for water pump ("PUMP"), speed setting
-  for PC fan (0-255), brightness setting for Neopixel LED lights
-  (0-255). Arduino Uno receives struct, unpacks information and
-  executes instructions.
-  */
-  bool PUMP;
-  uint8_t FAN;
-  uint8_t LED;
-} Controller;
-
-struct PAYSLAVE {
-  /*
-  The payload returned by Arduino Uno slave with status report.
-  Currently reports only fan speed which is read off the pin no. 3 
-  (yellow wire) of a PC fan.
-  */
-  uint8_t fan;
-} status;
-
-void debugTx() {
-  /*
-  Pretty-print tx payload (struct).
-  */
-  Serial.print("MASTER TX: ");
-  Serial.print(millis());
-  Serial.print("   Water: ");
-  Serial.print(Controller.PUMP);
-  Serial.print(", Fan: ");
-  Serial.print(Controller.FAN);
-  Serial.print(", LED: ");
-  Serial.println(Controller.LED);
-}
-
-void debugRx() {
-  /*
-  Pretty-print rx payload (struct).
-  */
-  Serial.print("MASTER RX: ");
-  Serial.print(millis());
-  Serial.print(", Fan: ");
-  Serial.println(status.fan);
-}
-
-void transmitCommand() {
-  /*
-  Transmit and receive payloads over UART with Arduino Uno.
-  */
-  MasterMCU.txObj(Controller, sizeof(Controller));
-  MasterMCU.sendDatum(Controller);
-  debugTx();
-
-  if (MasterMCU.available()) {
-    MasterMCU.rxObj(status);
-    debugRx();
-  } else if (MasterMCU.status < 0) {
-    Serial.print("ERROR: ");
-
-    if (MasterMCU.status == -1)
-      Serial.println(F("CRC_ERROR"));
-    else if (MasterMCU.status == -2)
-      Serial.println(F("PAYLOAD_ERROR"));
-    else if (MasterMCU.status == -3)
-      Serial.println(F("STOP_BYTE_ERROR"));
-  }
-}
-
-void debug_serialization() {
-  Serial.print("PUMP: ");
-  Serial.print(Controller.PUMP);
-  Serial.print(" FAN: ");
-  Serial.print(Controller.FAN);
-  Serial.print(" LED: ");
-  Serial.println(Controller.LED);
-}
-
-String KEY;
-String VAL;
-int ch;
-
-void deserializeJSON(char *PAYLOAD, unsigned int length) {
-  /*
-  Deserialize the serialized JSON read from topic on MQTT broker.
-  The array of char is read one character at a time to extract the 
-  key-value pairs and populate the struct.
-  Uses the fact that JSON payload has enclosing curly-braces, with
-  comma-separated key-value pairs, a colon separating key and value,
-  and text enclosed in quotes. 
-  EXPECTS ONLY INTEGER VALUES!!! KEYS MUST BE CONSISTENT WITH PAYLOAD STRUCT!!!
-  */
-  for (int i = 0; i < length; i++) {
-    ch = PAYLOAD[i];
-    //Serial.print(char(ch));
-    if ((ch == '{') || (ch == 32) || (ch == 34) || (ch == 39)) { // Discaed: curly brace, whitespace, quotation marks
-      // Do nothing!
-    } else if (ch == ':') {
-      // Print the key now if you need to. Otherwise do nothing.
-    } else if ((ch == 44) || (ch == '}')) { // comma
-      if (KEY == "PUMP") {
-        Controller.PUMP = VAL.toInt();
-      } else if (KEY == "FAN") {
-        Controller.FAN = VAL.toInt();
-      } else if (KEY == "LED") {
-        Controller.LED = VAL.toInt();
-      }
-      KEY = "";
-      VAL = "";
-    } else if ((ch >= '0') && (ch <= '9')) {
-      VAL += char(ch);
-    } else if (((ch >= 65) && (ch <= 90)) || ((ch > 97) && (ch < 122))) { // A-Z or a-z
-      KEY += char(ch);
-    }
-  }  
-  debug_serialization();
-  transmitCommand();
-}
 
 void mosquittoDo(char* topic, byte* payload, unsigned int length) {
   /*
@@ -164,10 +46,9 @@ void mosquittoDo(char* topic, byte* payload, unsigned int length) {
     message2display[i] = payload[i];
   }
   Serial.println();
-  deserializeJSON(message2display, length);
-  char message4OLED[length+6]; // 'Got: ' and null terminator.
-  snprintf(message4OLED, length+6, "Got: %s", message2display); 
-  displayMessage(message4OLED);
+  SerialBus.deserializeJSON(message2display, length);
+  fuse = true;
+  SerialBus.TxRx(true);
 }
 
 void setup() {
@@ -175,7 +56,7 @@ void setup() {
   Serial.begin(9600);
   WiFi.mode(WIFI_OFF);
   delay(1500);
-  MasterMCU.begin(Serial);
+  SerialBus.start_UARTBus();
   WiFi.mode(WIFI_STA);
   WiFi.begin(SSID, PASS);
   Serial.print("Connecting");
@@ -235,14 +116,21 @@ void loop() {
     listener, causing events to be missed.  
   */
   digitalWrite(onboard_led, LOW);
-  if (toc - tic > TIMER_INTERVAL) {
-    tic = toc;
+  if (toc - tic_MQTT > TIMER_MQTT) {
+    tic_MQTT = toc;
     if (!MosquittoClient.connected()) {
       Serial.println("Made no MQTT connection.");
       reconnect();
     } else {
       digitalWrite(onboard_led, HIGH);
-      //publish_message(); // Publisher action
+    }
+  }
+  if (toc - tic_UART > TIMER_UART) {
+    tic_UART = toc;
+    if (fuse) {
+      SerialBus.TxRx(true);
+    } else {
+      Serial.println("Received no message from broker.");
     }
   }
   MosquittoClient.loop(); // Subscriber action

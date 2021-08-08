@@ -1,6 +1,7 @@
 #ifndef UART_BUS_H
 #define UART_BUS_H
 
+#include <Wire.h>
 #include <SerialTransfer.h>
 
 struct TX {
@@ -38,11 +39,11 @@ class UARTBus
         void debugRx();             // Print status payload (STRUCT)
         void debugTx();             // Print instructions payload (STRUCT)
         void txControl();           // Transmit instructions payload (STRUCT)
-        void rxStatus();            // Handle status paylood (STRUCT)
-        TX get_control(bool=false);  // Show instructions payload
-        RX get_status(bool=false);   // Show status payload
-        void deserializeJSON(char *PAYLOAD, unsigned int length); // Helper function to convert serialized JSON from MQTT broker.
-
+        void rxStatus();            // Receive status paylood (STRUCT), if available
+        TX get_control(bool=false); // Show instructions payload
+        RX get_status(bool=false);  // Show status payload
+        void deserializeJSON(char *PAYLOAD, unsigned int length); // Helper function converta serialized JSON from MQTT broker
+        void TxRx(bool=false);       // Transmit instructions payload, receive status payload, optionally print to console
     private:
         SerialTransfer _UARTBus;
         TX _control;

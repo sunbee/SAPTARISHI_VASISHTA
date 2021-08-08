@@ -17,7 +17,7 @@ void UARTBus::debugTx() {
     */
     Serial.print("Instructions: ");
     Serial.print(millis());
-    Serial.print("Water: ");
+    Serial.print(", Water: ");
     Serial.print(this->_control.PUMP);
     Serial.print(", Fan: ");
     Serial.print(this->_control.FAN);
@@ -108,4 +108,15 @@ void UARTBus::deserializeJSON(char *PAYLOAD, unsigned int length) {
             KEY += char(ch);
         }
     }  
+}
+
+void UARTBus::TxRx(bool deBuG) {
+    this->txControl();
+    if (deBuG) {
+        this->debugTx();
+    }
+    this->rxStatus();
+    if (deBuG) {
+        this->debugRx();
+    }
 }
