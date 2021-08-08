@@ -9,7 +9,7 @@ UARTBus SerialBus;
 #include "SECRETS.h"
 
 #define TIMER_MQTT 60000   // Check connection with MQTT broker
-#define TIMER_UART 30000    // Tx instructions 
+#define TIMER_UART 30000   // Tx instructions 
 #define onboard_led 16
 
 const char* SSID = SECRET_SSID;
@@ -47,7 +47,7 @@ void mosquittoDo(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println();
   SerialBus.deserializeJSON(message2display, length);
-  SerialBus.TxRx(true);   // Transmit instructions. 
+  SerialBus.TxRx(true);   // Transmit instructions and receive status.
   fuse = true;            // Trigger timer for transmitting instructions at regular intervals
 }
 
@@ -128,7 +128,7 @@ void loop() {
   if (toc - tic_UART > TIMER_UART) {
     tic_UART = toc;
     if (fuse) {
-      SerialBus.TxRx(true);
+      SerialBus.TxRx(true); // Transmit instructions and receive status.
     } else {
       Serial.println("Received no message from broker.");
     }
