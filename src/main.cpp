@@ -1,5 +1,13 @@
 #include <Arduino.h>
 
+/*
+Control Automated Hydroponic Growout with ESP8266-12E nodemcu.
+The node listens to topic Act on MQTT broker for control instructions.
+The instructions, in serialized JSON, are deserialized and repackaged
+as struct. The struct is sent by serial transfer to partnering
+Arduino which executes instructions and sends back status.
+*/
+
 #include "UARTBus.h"
 UARTBus SerialBus;
 
