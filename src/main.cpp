@@ -1,5 +1,6 @@
 #include <Arduino.h>
 
+#include "UARTBus.h"
 #include <Wire.h>
 #include <SerialTransfer.h>
 
@@ -9,6 +10,9 @@ SerialTransfer MasterMCU;
 #include <PubSubClient.h>
 
 #include "SECRETS.h"
+
+#define TIMER_INTERVAL 1000
+#define onboard_led 16
 
 const char* SSID = SECRET_SSID;
 const char* PASS = SECRET_PASS;
@@ -75,7 +79,7 @@ void transmitCommand() {
   Transmit and receive payloads over UART with Arduino Uno.
   */
   MasterMCU.txObj(Controller, sizeof(Controller));
-  MasterMCU.sendDatum(Controller), sizeof(Controller);
+  MasterMCU.sendDatum(Controller);
   debugTx();
 
   if (MasterMCU.available()) {
@@ -221,8 +225,6 @@ void reconnect() {
 
 void loop() {
   unsigned long toc = millis();
-  #define TIMER_INTERVAL 60000
-  #define onboard_led 16
 
   /*
     Lights! Camera! Action!
