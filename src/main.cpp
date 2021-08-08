@@ -47,8 +47,9 @@ void mosquittoDo(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println();
   SerialBus.deserializeJSON(message2display, length);
-  fuse = true;
-  SerialBus.TxRx(true);
+  SerialBus.TxRx(true);   // Transmit instructions. 
+  fuse = true;            // Trigger timer for transmitting instructions at regular intervals
+
 }
 
 void setup() {
