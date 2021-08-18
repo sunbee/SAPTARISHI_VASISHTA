@@ -23,7 +23,7 @@ struct RX {
   Currently reports only fan speed which is read off the pin no. 3 
   (yellow wire) of a PC fan.
   */
-  uint8_t FAN;
+  uint16_t FAN;
 };
 
 /* 
